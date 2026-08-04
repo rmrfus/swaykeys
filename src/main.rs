@@ -1,10 +1,10 @@
-use std::io::Write;
+use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
 
 use clap::{Parser, ValueEnum};
 use swaykeys::model::Resolver;
-use swaykeys::{model, render, source, xkb};
+use swaykeys::{group, model, render, source, xkb};
 
 /// Help sheet for every active sway key binding.
 ///
@@ -17,23 +17,50 @@ struct Args {
     #[arg(short, long, value_name = "PATH")]
     config: Option<PathBuf>,
 
-    /// Output format.
-    #[arg(long, value_enum, default_value_t = Format::Plain)]
+    /// Output format. `auto` is the aligned sheet on a terminal, markdown when
+    /// piped.
+    #[arg(long, value_enum, default_value_t = Format::Auto)]
     format: Format,
+
+    /// Colour. `auto` means on a terminal only; NO_COLOR always wins.
+    #[arg(long, value_enum, default_value_t = When::Auto)]
+    color: When,
+
+    /// Lay the sections out side by side.
+    #[arg(short = '2', long)]
+    two_column: bool,
+
+    /// Show the comment above a binding instead of its command.
+    #[arg(long)]
+    desc: bool,
 
     /// Also show bindings that never fire because another one wins the chord.
     #[arg(long)]
     all: bool,
+
+    /// Only this binding mode.
+    #[arg(long, value_name = "NAME")]
+    mode: Option<String>,
 }
 
-#[derive(Clone, Copy, ValueEnum)]
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
 enum Format {
+    Auto,
     Plain,
+    Md,
     Json,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum When {
+    Auto,
+    Always,
+    Never,
 }
 
 fn main() -> ExitCode {
     let args = Args::parse();
+    let tty = std::io::stdout().is_terminal();
 
     let config = match source::load(args.config.as_deref()) {
         Ok(c) => c,
@@ -66,14 +93,45 @@ fn main() -> ExitCode {
     if keymap.is_some() {
         xkb::mark_shadowed(&mut bindings.list, resolver);
     }
+    if let Some(mode) = &args.mode {
+        bindings.list.retain(|b| &b.mode == mode);
+    }
+
     // Anything that looked like a binding but did not parse goes to stderr.
     // A help sheet that silently drops a line is worse than none at all.
     for line in &bindings.unparsed {
         eprintln!("{line}");
     }
 
-    let out = match args.format {
-        Format::Plain => render::plain(&bindings, args.all),
+    let opts = group::Opts {
+        all: args.all,
+        desc: args.desc,
+    };
+    let sections = group::sections(&bindings, &config.directives, opts);
+
+    // Piped output is for reading elsewhere — a README, an issue — so markdown
+    // is the useful default there, and the aligned sheet is for the terminal.
+    let format = match args.format {
+        Format::Auto if tty => Format::Plain,
+        Format::Auto => Format::Md,
+        explicit => explicit,
+    };
+    // NO_COLOR is honoured whatever its value, per no-color.org.
+    let color = match args.color {
+        When::Always => true,
+        When::Never => false,
+        When::Auto => tty && std::env::var_os("NO_COLOR").is_none(),
+    };
+    let columns = if args.two_column { 2 } else { 1 };
+
+    let out = match format {
+        Format::Plain | Format::Auto => {
+            // 100 when there is no terminal to ask, which only matters for the
+            // column budget — a single column never truncates.
+            let term_width = ratatui::crossterm::terminal::size().map_or(100, |(w, _)| w as usize);
+            render::plain(&sections, render::Style { color }, columns, term_width)
+        }
+        Format::Md => render::markdown(&sections),
         Format::Json => render::json(&bindings, config.root.as_deref()),
     };
 

@@ -3,6 +3,7 @@
 //! Split into a library so the parser can be exercised against fixture configs
 //! from `tests/` without a running compositor.
 
+pub mod group;
 pub mod lex;
 pub mod model;
 pub mod render;

@@ -53,7 +53,15 @@ pub fn logical_lines(content: &str) -> Vec<LogicalLine> {
             continue;
         }
         if let Some(rest) = stripped.strip_prefix('#') {
-            comment.push(rest.strip_prefix(' ').unwrap_or(rest).to_string());
+            // A bare `#` is a paragraph break, not a blank comment line. Without
+            // this, a banner like "### Key bindings / # / # Basics: / #" runs
+            // straight into the comment on the next binding and the description
+            // reads as one nonsense sentence.
+            let rest = rest.trim_start_matches('#');
+            match rest.trim().is_empty() {
+                true => comment.clear(),
+                false => comment.push(rest.strip_prefix(' ').unwrap_or(rest).to_string()),
+            }
             continue;
         }
 
@@ -149,5 +157,14 @@ mod tests {
     fn blank_line_detaches_the_comment() {
         let lines = logical_lines("# stray\n\nbindsym a exec foo");
         assert!(lines[0].comment.is_empty());
+    }
+
+    #[test]
+    fn bare_hash_is_a_paragraph_break() {
+        // The shape every stock sway config uses for its section banners.
+        let lines = logical_lines(
+            "### Key bindings\n#\n# Basics:\n#\n# Start a terminal\nbindsym a exec foo",
+        );
+        assert_eq!(lines[0].comment, ["Start a terminal"]);
     }
 }
