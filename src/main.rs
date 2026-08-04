@@ -4,7 +4,7 @@ use std::process::ExitCode;
 
 use clap::{Parser, ValueEnum};
 use swaykeys::model::Resolver;
-use swaykeys::{group, model, render, source, xkb};
+use swaykeys::{group, model, render, source, tui, xkb};
 
 /// Help sheet for every active sway key binding.
 ///
@@ -25,6 +25,11 @@ struct Args {
     /// Colour. `auto` means on a terminal only; NO_COLOR always wins.
     #[arg(long, value_enum, default_value_t = When::Auto)]
     color: When,
+
+    /// Interactive pager. `auto` opens it on a terminal when no explicit
+    /// --format was asked for.
+    #[arg(long, value_enum, default_value_t = When::Auto)]
+    pager: When,
 
     /// Lay the sections out side by side.
     #[arg(short = '2', long)]
@@ -108,6 +113,24 @@ fn main() -> ExitCode {
         desc: args.desc,
     };
     let sections = group::sections(&bindings, &config.directives, opts);
+
+    // Asking for a format is asking for text, so an explicit --format turns the
+    // pager off. Otherwise it opens on a terminal and stays out of the way in a
+    // pipe, where there is nothing to interact with.
+    let pager = match args.pager {
+        When::Always => true,
+        When::Never => false,
+        When::Auto => tty && args.format == Format::Auto,
+    };
+    if pager {
+        return match tui::run(&sections) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("swaykeys: {e}");
+                ExitCode::FAILURE
+            }
+        };
+    }
 
     // Piped output is for reading elsewhere — a README, an issue — so markdown
     // is the useful default there, and the aligned sheet is for the terminal.

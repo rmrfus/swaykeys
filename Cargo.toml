@@ -10,6 +10,7 @@ license = "MIT"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 glob = "0.3"
+nucleo-matcher = "0.3.1"
 # Re-exports crossterm, so terminal size, raw mode and key events all come
 # from here — no second terminal crate.
 ratatui = "0.30"

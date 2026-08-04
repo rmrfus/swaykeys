@@ -8,5 +8,6 @@ pub mod lex;
 pub mod model;
 pub mod render;
 pub mod source;
+pub mod tui;
 pub mod vars;
 pub mod xkb;
