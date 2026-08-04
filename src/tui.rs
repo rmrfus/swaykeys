@@ -14,12 +14,13 @@ use nucleo_matcher::pattern::{CaseMatching, Normalization, Pattern};
 use nucleo_matcher::{Config, Matcher, Utf32Str};
 use ratatui::crossterm::event::{self, Event, KeyCode, KeyEventKind, KeyModifiers};
 use ratatui::layout::{Constraint, Layout};
-use ratatui::style::{Color, Modifier, Style};
+use ratatui::style::{Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::Paragraph;
 use ratatui::{DefaultTerminal, Frame};
 
 use crate::group::{Row, Section};
+use crate::theme;
 
 /// One line of the scrollable area.
 enum Entry<'a> {
@@ -294,7 +295,7 @@ impl<'a> App<'a> {
         if let Some(winner) = &row.shadowed_by {
             origin.push(Span::styled(
                 format!("  — never fires; {winner} wins this chord"),
-                Style::default().fg(Color::Red),
+                Style::default().fg(theme::Colour::Red.ratatui()),
             ));
         }
         vec![Line::from(row.command.clone()), Line::from(origin)]
@@ -303,7 +304,7 @@ impl<'a> App<'a> {
     fn prompt_line(&self) -> Line<'_> {
         let matched = self.matches();
         Line::from(vec![
-            Span::styled("> ", Style::default().fg(Color::Cyan)),
+            Span::styled("> ", Style::default().fg(theme::Colour::Blue.ratatui())),
             Span::raw(self.filter.clone()),
             Span::styled("█", Style::default().add_modifier(Modifier::SLOW_BLINK)),
             Span::styled(
@@ -314,12 +315,13 @@ impl<'a> App<'a> {
     }
 }
 
+/// Bold and underlined, with no foreground colour — the same as the static
+/// sheet. It used to be yellow here, which both diverged from the sheet and
+/// collided with the yellow that means Ctrl.
 fn heading_line(title: &str) -> Line<'static> {
     Line::from(Span::styled(
         title.to_string(),
-        Style::default()
-            .fg(Color::Yellow)
-            .add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
+        Style::default().add_modifier(Modifier::BOLD | Modifier::UNDERLINED),
     ))
 }
 
@@ -339,7 +341,7 @@ fn row_line(row: &Row, selected: bool, key_width: usize) -> Line<'static> {
         let style = if dead {
             Style::default().add_modifier(Modifier::DIM)
         } else {
-            Style::default().fg(modifier_colour(m))
+            Style::default().fg(theme::modifier(m).ratatui())
         };
         spans.push(Span::styled(m.clone(), style));
         spans.push(Span::styled(
@@ -363,16 +365,6 @@ fn row_line(row: &Row, selected: bool, key_width: usize) -> Line<'static> {
         line.style(Style::default().add_modifier(Modifier::REVERSED))
     } else {
         line
-    }
-}
-
-fn modifier_colour(name: &str) -> Color {
-    match name {
-        "Super" => Color::Magenta,
-        "Ctrl" => Color::Yellow,
-        "Alt" => Color::Cyan,
-        "Shift" => Color::Green,
-        _ => Color::Blue,
     }
 }
 

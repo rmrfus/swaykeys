@@ -8,23 +8,12 @@ use serde::Serialize;
 
 use crate::group::{Row, Section};
 use crate::model::{Binding, Bindings};
+use crate::theme;
 
 const RESET: &str = "\x1b[0m";
 const BOLD: &str = "\x1b[1m";
 const DIM: &str = "\x1b[2m";
 const UNDERLINE: &str = "\x1b[4m";
-
-/// A distinct colour per modifier, so a chord is scannable at a glance rather
-/// than read left to right.
-fn modifier_colour(name: &str) -> &'static str {
-    match name {
-        "Super" => "\x1b[35m", // magenta
-        "Ctrl" => "\x1b[33m",  // yellow
-        "Alt" => "\x1b[36m",   // cyan
-        "Shift" => "\x1b[32m", // green
-        _ => "\x1b[34m",       // blue
-    }
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct Style {
@@ -47,7 +36,7 @@ impl Style {
         let mut parts: Vec<String> = row
             .modifiers
             .iter()
-            .map(|m| self.paint(modifier_colour(m), m))
+            .map(|m| self.paint(theme::modifier(m).ansi(), m))
             .collect();
         parts.push(self.paint(BOLD, &row.key));
         parts.join(&self.paint(DIM, "+"))
