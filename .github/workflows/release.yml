@@ -1,0 +1,86 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            artifact: swaykeys-x86_64-linux
+          - target: aarch64-unknown-linux-gnu
+            artifact: swaykeys-aarch64-linux
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cargo-zigbuild
+        run: pip install ziglang && cargo install cargo-zigbuild
+
+      # glibc, not musl: libxkbcommon is loaded with dlopen, which a fully
+      # static binary cannot do. Pinning the glibc version keeps the binaries
+      # usable on distributions older than the runner.
+      - name: Build
+        run: cargo zigbuild --target ${{ matrix.target }}.2.28 --release --locked
+
+      - name: Stage binary
+        run: cp "target/${{ matrix.target }}/release/swaykeys" "${{ matrix.artifact }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      # tar preserves the exec bit that upload-artifact and bare gzip drop.
+      # Loop + glob so adding a target means editing only the build matrix.
+      - name: Package and checksum
+        working-directory: dist
+        run: |
+          for f in swaykeys-*; do
+            install -m755 "$f" swaykeys
+            tar -czf "$f.tar.gz" swaykeys
+            rm -f swaykeys "$f"
+          done
+          sha256sum -- *.tar.gz > SHA256SUMS
+          ls -la
+
+      - name: Publish release
+        run: |
+          gh release delete "${GITHUB_REF_NAME}" --yes --repo "${GITHUB_REPOSITORY}" 2>/dev/null || true
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${GITHUB_REF_NAME}" \
+            --generate-notes \
+            dist/*.tar.gz dist/SHA256SUMS
+        env:
+          GH_TOKEN: ${{ github.token }}

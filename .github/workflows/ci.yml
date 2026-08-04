@@ -1,0 +1,47 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: fmt · clippy · test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # libxkbcommon is dlopen'd at run time, and xkb-data carries the layout
+      # definitions it compiles against. Without both, the keymap tests skip
+      # instead of running and the interesting half of the suite is silently
+      # not covered.
+      - name: Install libxkbcommon
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon0 xkb-data
+
+      - name: Add components
+        run: rustup component add clippy rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      # The keymap tests skip rather than fail when libxkbcommon is missing, so
+      # a broken install above would look like a green run. Prove it loaded.
+      - name: Check the keymap tests actually ran
+        run: |
+          cargo test --locked --test shadow -- --nocapture 2>&1 | tee out.txt
+          if grep -q 'libxkbcommon unavailable' out.txt; then
+            echo "::error::libxkbcommon did not load; shadow tests were skipped"
+            exit 1
+          fi

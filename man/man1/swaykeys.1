@@ -6,29 +6,213 @@ swaykeys \- help sheet for every active sway key binding
 [\fIOPTIONS\fR]
 .SH DESCRIPTION
 .B swaykeys
-parses the sway config the way sway itself does \(em following
-.B include
-directives, expanding
+reads the sway config the way sway reads it \(em following
+.BR include ,
+expanding
 .B set
 variables, tracking
 .B mode
-blocks \(em and prints every binding as a grouped, filterable help sheet.
+blocks \(em and lists the bindings that actually fire, grouped into sections.
+.PP
+On a terminal it opens an interactive sheet: type to filter, and the section
+headings stay put.\& Piped, it prints markdown.
 .SH OPTIONS
 .TP
 .BR \-c ", " \-\-config " \fIPATH\fR"
-Read this file instead of locating the running config. Disables the
-IPC cross\-check.
+Read this config instead of locating the running one.\& Disables the IPC
+cross\-check, and lets the tool run with no compositor at all.
 .TP
-.BR \-\-format " \fIFMT\fR"
-Output format: \fBauto\fR, \fBplain\fR, \fBmd\fR or \fBjson\fR.
-Default: auto.
+.BR \-\-format " " auto | plain | md | json
+Output format.\&
+.B auto
+(the default) is the aligned sheet on a terminal and markdown when piped.\&
+Naming a format explicitly also turns the pager off.
+.TP
+.BR \-\-pager " " auto | always | never
+Interactive sheet.\&
+.B auto
+opens it on a terminal when no explicit
+.B \-\-format
+was asked for.
+.TP
+.BR \-\-color " " auto | always | never
+Colour.\&
+.B auto
+means on a terminal only.\& The
+.B NO_COLOR
+environment variable disables colour whatever its value.
+.TP
+.BR \-2 ", " \-\-two\-column
+Lay the sheet out in two columns.\& Sections are cut where the balance falls
+and the heading is repeated, so long commands are clipped to fit.
+.TP
+.B \-\-desc
+Show the comment above a binding instead of its command.
+.TP
+.B \-\-all
+Also show bindings that never fire because another one wins the chord.\& They
+are dimmed and annotated with what beats them.
+.TP
+.BR \-\-mode " \fINAME\fR"
+Only bindings in this binding mode.
 .TP
 .BR \-h ", " \-\-help
 Print help and exit.
 .TP
 .BR \-V ", " \-\-version
 Print version and exit.
+.SH KEYS
+Inside the interactive sheet, keys follow
+.BR fzf (1):
+.TP
+.I printable characters
+Add to the filter.\&
+.B q
+is not quit \(em it goes into the filter.
+.TP
+.BR Up ", " Down ", " Ctrl\-p ", " Ctrl\-n
+Move the cursor.
+.TP
+.BR PageUp ", " PageDown ", " Home ", " End
+Move by a screen, or to either end.
+.TP
+.BR Backspace ", " Ctrl\-w ", " Ctrl\-u
+Delete a character, a word, or the whole filter.
+.TP
+.BR Esc ", " Ctrl\-c ", " Enter
+Leave.
+.SH SECTIONS
+.TP
+.B Standard
+Keyboard bindings in the default mode.
+.TP
+.I mode name
+One section per binding mode, named and ordered as in the config.
+.TP
+.B Mouse
+Button bindings, plus the drag and resize that
+.B floating_modifier
+binds without naming a button.
+.TP
+.B Touchpad
+.B bindgesture
+bindings.
+.TP
+.B Switches
+.B bindswitch
+bindings, such as the laptop lid.
+.TP
+.B Built\-in
+Ctrl+Alt+F1..F12, which sway handles itself.\& It is a fallback: a config
+binding on the same chord wins.
+.SH WHICH BINDING FIRES
+sway keeps bindings in five separate lists per mode, and a binding only ever
+collides with, or is removed by, something in its own list.\& A
+.B bindsym \-\-to\-code $mod+d
+and a plain
+.B bindsym $mod+d
+therefore both survive; the first fires only because the keycode list is
+queried first.\& By default only the winner is listed, and
+.B \-\-all
+shows the loser alongside it.
+.PP
+.B \-\-to\-code
+is a request, not a guarantee: sway keeps the binding in the keycode list only
+if every keysym in the chord maps to exactly one keycode.\& A keysym on two
+keys \(em
+.B Print
+on a stock
+.B us
+layout, for instance \(em sends the whole binding back to the keysym list,
+where it does collide with a plain
+.BR bindsym .
+.PP
+Shadowing is only reported when both candidates would be equally applicable to
+the same event.\& Where sway would choose using facts about the runtime input
+device, nothing is claimed.
+.SH DIAGNOSTICS
+Lines beginning with
+.B bind
+or
+.B unbind
+that cannot be parsed are reported on standard error as
+.BR "UNPARSED \fIfile\fR:\fIline\fR: \fItext\fR" .
+A help sheet that silently drops a binding is worse than no help sheet.
+.PP
+Exit status is 0 unless the config could not be read.
+.SH ENVIRONMENT
+.TP
+.B SWAYSOCK
+Path to the sway IPC socket, used to cross\-check the config that was found
+against the one the running compositor loaded.\&
+.B I3SOCK
+is accepted as a fallback.
+.TP
+.B NO_COLOR
+Disables colour, whatever its value.
+.SH FILES
+Without
+.BR \-\-config ,
+the root config is located in sway's own search order:
+.PP
+.PD 0
+.IP 1. 4
+.I ~/.sway/config
+.IP 2. 4
+.I $XDG_CONFIG_HOME/sway/config
+.IP 3. 4
+.I ~/.i3/config
+.IP 4. 4
+.I $XDG_CONFIG_HOME/i3/config
+.IP 5. 4
+.I /etc/sway/config
+.IP 6. 4
+.I /etc/i3/config
+.PD
+.PP
+The IPC returns the root config verbatim, without expanding
+.B include
+\(em so the path is needed regardless, since includes resolve against the
+directory of their parent.
+.SH EXAMPLES
+Browse every binding:
+.RS
+.EX
+swaykeys
+.EE
+.RE
+.PP
+Drop a cheat sheet into a README:
+.RS
+.EX
+swaykeys > BINDINGS.md
+.EE
+.RE
+.PP
+Two columns in a floating terminal, with descriptions from the config
+comments:
+.RS
+.EX
+foot \-a floating swaykeys \-2 \-\-desc \-\-pager never
+.EE
+.RE
+.PP
+Find out what shadows what:
+.RS
+.EX
+swaykeys \-\-all \-\-format plain | grep shadowed
+.EE
+.RE
+.PP
+Read someone else's config, with no compositor running:
+.RS
+.EX
+swaykeys \-\-config ./their\-sway\-config \-\-format md
+.EE
+.RE
 .SH SEE ALSO
 .BR sway (1),
 .BR sway (5),
-.BR sway-ipc (7)
+.BR sway-input (5),
+.BR sway-ipc (7),
+.BR fzf (1)
