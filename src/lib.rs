@@ -8,3 +8,4 @@ pub mod model;
 pub mod render;
 pub mod source;
 pub mod vars;
+pub mod xkb;

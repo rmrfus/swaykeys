@@ -37,18 +37,31 @@ pub trait Resolver {
     /// Does this keysym name translate to exactly one keycode?
     fn resolves_to_single_keycode(&self, sym: &str) -> bool;
 
+    /// *Which* keycode, when there is exactly one. Separate from the question
+    /// above because [`Optimistic`] can answer one and not the other.
+    fn keycode_for(&self, sym: &str) -> Option<u32>;
+
     /// Name of the keysym a raw keycode produces, for displaying `bindcode`.
     fn keycode_name(&self, code: u32) -> Option<String>;
 }
 
 /// Assumes every keysym translates cleanly, and cannot name keycodes. True for
-/// essentially every chord on a normal layout; `xkb::Keymap` replaces it when
-/// libxkbcommon is available.
+/// essentially every chord on a normal layout; [`crate::xkb::Keymap`] replaces
+/// it when libxkbcommon is available.
+///
+/// Erring optimistic is deliberate. Assuming translation *fails* would file
+/// `--to-code` bindings next to plain `bindsym` ones, where they would
+/// overwrite each other — merging two bindings sway keeps apart. Erring the
+/// other way only costs an unresolved shadow claim, which we simply do not make.
 pub struct Optimistic;
 
 impl Resolver for Optimistic {
     fn resolves_to_single_keycode(&self, _sym: &str) -> bool {
         true
+    }
+
+    fn keycode_for(&self, _sym: &str) -> Option<u32> {
+        None
     }
 
     fn keycode_name(&self, _code: u32) -> Option<String> {
@@ -357,9 +370,19 @@ fn parse(d: &Directive, resolver: &dyn Resolver) -> Option<(Binding, bool)> {
                 .collect::<Vec<_>>()
                 .join("+");
 
-            // sway sorts the key list before comparing, so chords written in a
-            // different order still collide.
-            let mut sorted_keys = keys.clone();
+            // sway compares the key list *after* translation, so for a keycode
+            // binding the comparison is between keycodes, not the names people
+            // typed. Without that, `--to-code a` and `--to-code A` look like
+            // two bindings when sway sees one.
+            let mut sorted_keys: Vec<Key> = keys
+                .iter()
+                .map(|k| match k {
+                    Key::Sym(s) if bucket == Bucket::Keycode => {
+                        resolver.keycode_for(s).map_or_else(|| k.clone(), Key::Code)
+                    }
+                    _ => k.clone(),
+                })
+                .collect();
             sorted_keys.sort();
 
             Binding {

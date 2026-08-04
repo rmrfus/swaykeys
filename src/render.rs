@@ -6,20 +6,34 @@ use serde::Serialize;
 use crate::model::{Binding, Bindings};
 
 /// Aligned two-column plain text, one binding per line.
-pub fn plain(bindings: &Bindings) -> String {
-    let width = bindings
+///
+/// `all` also lists bindings that never fire because another list wins the same
+/// chord, annotated with what beats them. Hiding them is the default: a help
+/// sheet answers "what does this key do", and a binding that cannot happen
+/// answers it wrongly.
+pub fn plain(bindings: &Bindings, all: bool) -> String {
+    let shown: Vec<&Binding> = bindings
         .list
+        .iter()
+        .filter(|b| all || b.shadowed_by.is_none())
+        .collect();
+    let width = shown
         .iter()
         .map(|b| b.chord.chars().count())
         .max()
         .unwrap_or(0);
 
     let mut out = String::new();
-    for b in &bindings.list {
+    for b in shown {
         let pad = width - b.chord.chars().count();
         out.push_str(&b.chord);
         out.push_str(&" ".repeat(pad + 2));
         out.push_str(&b.command);
+        if let Some(i) = b.shadowed_by {
+            out.push_str("    (shadowed by ");
+            out.push_str(&bindings.list[i].origin);
+            out.push(')');
+        }
         out.push('\n');
     }
     out

@@ -29,7 +29,8 @@ impl Vars {
         }
         self.syms.push((name.to_string(), value));
         // Longest first, so a prefix match always picks the most specific.
-        self.syms.sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
+        self.syms
+            .sort_by_key(|(name, _)| std::cmp::Reverse(name.len()));
     }
 
     /// Substitute every `$var` in `s`.

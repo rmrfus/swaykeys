@@ -12,6 +12,10 @@ clap = { version = "4", features = ["derive"] }
 glob = "0.3"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+# dlopen'd rather than linked: the binary stays usable on a host without
+# libxkbcommon (bindcode display and shadow detection degrade, nothing breaks),
+# and there is no C dependency at build time.
+xkbcommon-dl = "0.4"
 
 [profile.release]
 lto = true
