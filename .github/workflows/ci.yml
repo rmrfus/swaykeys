@@ -36,6 +36,15 @@ jobs:
       - name: Test
         run: cargo test --locked
 
+      # The FFI in xkb.rs deals in c_char, which is signed on x86_64 and
+      # unsigned on aarch64. Building only the host target let a type error
+      # through to the release workflow, which is the worst place to find it —
+      # after the tag. A check-only cross build is cheap and catches it here.
+      - name: Cross-check aarch64
+        run: |
+          rustup target add aarch64-unknown-linux-gnu
+          cargo check --target aarch64-unknown-linux-gnu --all-targets --locked
+
       # The keymap tests skip rather than fail when libxkbcommon is missing, so
       # a broken install above would look like a green run. Prove it loaded.
       - name: Check the keymap tests actually ran

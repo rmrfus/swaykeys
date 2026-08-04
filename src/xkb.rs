@@ -27,7 +27,7 @@
 //! working help sheet: raw keycodes instead of names, and no shadow claims.
 
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::{c_char, CStr, CString};
 
 use xkbcommon_dl as xkb;
 
@@ -168,7 +168,10 @@ impl Keymap {
             let mut codes_for: HashMap<u32, (u32, usize)> = HashMap::new();
             let min = (lib.xkb_keymap_min_keycode)(keymap);
             let max = (lib.xkb_keymap_max_keycode)(keymap);
-            let mut buf = [0i8; 64];
+            // c_char, not i8: it is signed on x86_64 and *unsigned* on aarch64,
+            // so hardcoding either side compiles on one architecture and fails
+            // on the other.
+            let mut buf = [0 as c_char; 64];
 
             for code in min..=max {
                 // Group 0: the state is fresh, so this is the first layout —
