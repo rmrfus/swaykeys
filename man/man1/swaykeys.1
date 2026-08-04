@@ -1,0 +1,34 @@
+.TH SWAYKEYS 1 "2026-08-04" "swaykeys" "User Commands"
+.SH NAME
+swaykeys \- help sheet for every active sway key binding
+.SH SYNOPSIS
+.B swaykeys
+[\fIOPTIONS\fR]
+.SH DESCRIPTION
+.B swaykeys
+parses the sway config the way sway itself does \(em following
+.B include
+directives, expanding
+.B set
+variables, tracking
+.B mode
+blocks \(em and prints every binding as a grouped, filterable help sheet.
+.SH OPTIONS
+.TP
+.BR \-c ", " \-\-config " \fIPATH\fR"
+Read this file instead of locating the running config. Disables the
+IPC cross\-check.
+.TP
+.BR \-\-format " \fIFMT\fR"
+Output format: \fBauto\fR, \fBplain\fR, \fBmd\fR or \fBjson\fR.
+Default: auto.
+.TP
+.BR \-h ", " \-\-help
+Print help and exit.
+.TP
+.BR \-V ", " \-\-version
+Print version and exit.
+.SH SEE ALSO
+.BR sway (1),
+.BR sway (5),
+.BR sway-ipc (7)

@@ -1,0 +1,18 @@
+[package]
+name = "swaykeys"
+version = "0.1.0"
+edition = "2021"
+description = "Help sheet for every active sway key binding"
+homepage = "https://github.com/rmrfus/swaykeys"
+repository = "https://github.com/rmrfus/swaykeys"
+license = "MIT"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+glob = "0.3"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[profile.release]
+lto = true
+strip = true
