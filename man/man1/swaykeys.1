@@ -38,9 +38,11 @@ was asked for.
 .BR \-\-color " " auto | always | never
 Colour.\&
 .B auto
-means on a terminal only.\& The
+means on a terminal only, and is disabled by the
 .B NO_COLOR
-environment variable disables colour whatever its value.
+environment variable whatever its value.\& An explicit
+.B always
+overrides both: an option typed now beats a variable from a shell profile.
 .TP
 .BR \-2 ", " \-\-two\-column
 Lay the sheet out in two columns.\& Sections are cut where the balance falls
@@ -149,7 +151,9 @@ against the one the running compositor loaded.\&
 is accepted as a fallback.
 .TP
 .B NO_COLOR
-Disables colour, whatever its value.
+Disables colour, whatever its value, unless
+.B \-\-color always
+is given.
 .SH FILES
 Without
 .BR \-\-config ,

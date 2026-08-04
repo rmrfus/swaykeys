@@ -76,10 +76,13 @@ pub fn plain(sections: &[Section], style: Style, columns: usize, term_width: usi
         .unwrap_or(0);
 
     // One long `exec` line would otherwise set the width of the whole column
-    // and push everything to its right off the screen.
+    // and push everything to its right off the screen. One column is left
+    // spare: a line filling the terminal exactly leaves the cursor in the last
+    // cell, and the newline after it then reads as a blank line on terminals
+    // that defer the wrap.
     let text_budget = (columns > 1).then(|| {
-        let per_column = term_width.saturating_sub(GUTTER * (columns - 1)) / columns;
-        per_column.saturating_sub(pad + 4).max(8)
+        let usable = term_width.saturating_sub(GUTTER * (columns - 1) + 1);
+        (usable / columns).saturating_sub(pad + 4).max(8)
     });
 
     let mut lines: Vec<Line> = Vec::new();

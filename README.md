@@ -122,8 +122,8 @@ swaykeys [OPTIONS]
 | `-c, --config <PATH>` | auto    | read this config instead of locating the running one           |
 | `--format <FMT>`      | `auto`  | `auto`, `plain`, `md` or `json`; naming one turns the pager off |
 | `--pager <WHEN>`      | `auto`  | `auto`, `always`, `never`                                      |
-| `--color <WHEN>`      | `auto`  | `auto`, `always`, `never`; `NO_COLOR` always wins              |
-| `-2, --two-column`    | off     | lay the sheet out side by side                                 |
+| `--color <WHEN>`      | `auto`  | `auto`, `always`, `never`; `NO_COLOR` disables `auto`          |
+| `-2, --two-column`    | off     | side by side; implies plain text and no pager                  |
 | `--desc`              | off     | show the comment above a binding instead of its command        |
 | `--all`               | off     | also show bindings that never fire, and what beats them        |
 | `--mode <NAME>`       | all     | only this binding mode                                         |

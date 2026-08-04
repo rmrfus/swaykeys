@@ -22,7 +22,8 @@ struct Args {
     #[arg(long, value_enum, default_value_t = Format::Auto)]
     format: Format,
 
-    /// Colour. `auto` means on a terminal only; NO_COLOR always wins.
+    /// Colour. `auto` means on a terminal only, and NO_COLOR disables it —
+    /// but an explicit `always` wins over both.
     #[arg(long, value_enum, default_value_t = When::Auto)]
     color: When,
 
@@ -31,7 +32,8 @@ struct Args {
     #[arg(long, value_enum, default_value_t = When::Auto)]
     pager: When,
 
-    /// Lay the sections out side by side.
+    /// Lay the sections out side by side. Implies --pager never, since the
+    /// pager scrolls instead of packing the sheet onto one screen.
     #[arg(short = '2', long)]
     two_column: bool,
 
@@ -114,14 +116,22 @@ fn main() -> ExitCode {
     };
     let sections = group::sections(&bindings, &config.directives, opts);
 
-    // Asking for a format is asking for text, so an explicit --format turns the
-    // pager off. Otherwise it opens on a terminal and stays out of the way in a
-    // pipe, where there is nothing to interact with.
+    // Asking for a particular layout is asking for text, so an explicit
+    // --format or -2 turns the pager off. Otherwise it opens on a terminal and
+    // stays out of the way in a pipe, where there is nothing to interact with.
+    //
+    // -2 counts because two columns are a way to fit a whole sheet on one
+    // screen, which is a static-output problem; the pager answers it by
+    // scrolling and filtering instead. Leaving -2 out of this rule made it a
+    // flag that did nothing at all in the default mode.
     let pager = match args.pager {
         When::Always => true,
         When::Never => false,
-        When::Auto => tty && args.format == Format::Auto,
+        When::Auto => tty && args.format == Format::Auto && !args.two_column,
     };
+    if pager && args.two_column {
+        eprintln!("swaykeys: --two-column does not apply to the pager; ignoring it");
+    }
     if pager {
         return match tui::run(&sections) {
             Ok(()) => ExitCode::SUCCESS,
@@ -134,11 +144,17 @@ fn main() -> ExitCode {
 
     // Piped output is for reading elsewhere — a README, an issue — so markdown
     // is the useful default there, and the aligned sheet is for the terminal.
+    // -2 overrides that: it is a request for a particular text layout, and
+    // markdown tables have no use for columns, so `swaykeys -2 | less` should
+    // still give you two columns.
     let format = match args.format {
-        Format::Auto if tty => Format::Plain,
+        Format::Auto if tty || args.two_column => Format::Plain,
         Format::Auto => Format::Md,
         explicit => explicit,
     };
+    if args.two_column && format != Format::Plain {
+        eprintln!("swaykeys: --two-column only applies to the plain format; ignoring it");
+    }
     // NO_COLOR is honoured whatever its value, per no-color.org.
     let color = match args.color {
         When::Always => true,
