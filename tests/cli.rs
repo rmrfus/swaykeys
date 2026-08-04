@@ -54,7 +54,15 @@ fn two_column_forces_the_plain_layout_even_in_a_pipe() {
     let text = stdout(&out);
     assert!(!text.contains("## Standard"), "still markdown:\n{text}");
     assert!(text.contains("(cont.)"), "not laid out in columns:\n{text}");
-    assert_eq!(stderr(&out), "", "should not have complained");
+    // Specifically: no complaint *about -2*. Asserting stderr is empty would
+    // be wrong — unrelated diagnostics belong there, and the keymap warning
+    // legitimately fires wherever libxkbcommon is absent, such as the Nix
+    // build sandbox.
+    assert!(
+        !stderr(&out).contains("--two-column"),
+        "complained: {:?}",
+        stderr(&out)
+    );
 }
 
 #[test]
