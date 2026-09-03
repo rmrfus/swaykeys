@@ -16,6 +16,7 @@
 
 use std::collections::HashSet;
 use std::io::{Read, Write};
+use std::os::unix::ffi::OsStrExt;
 use std::os::unix::net::UnixStream;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -129,6 +130,11 @@ pub fn load(explicit: Option<&Path>) -> Result<Config, String> {
 /// Config search order, straight out of `man sway(1)`.
 fn search_path() -> Vec<PathBuf> {
     let home = std::env::var_os("HOME").map(PathBuf::from);
+    // Set-and-non-empty, and deliberately *not* also "absolute", which is what
+    // the XDG spec asks for. sway itself tests only `NULL || '\0'`
+    // (`get_config_path`, sway/config.c), so rejecting a relative
+    // XDG_CONFIG_HOME here would send us looking somewhere the compositor is
+    // not — which is the one thing this tool must never do.
     let xdg = std::env::var_os("XDG_CONFIG_HOME")
         .filter(|v| !v.is_empty())
         .map(PathBuf::from)
@@ -355,21 +361,34 @@ fn unquote(s: &str) -> &str {
 
 /// The parts of `wordexp()` we are willing to do: `~` and `$VAR`. Globbing is
 /// left to the caller, and command substitution is refused outright.
+///
+/// Byte-wise throughout, and that is the point. Scanning by byte is safe —
+/// `$`, `{`, `}` and the name characters are ASCII, which can never appear
+/// inside a multi-byte UTF-8 sequence — but the bytes then have to be *copied*
+/// as bytes. `push(b[i] as char)` maps each byte of such a sequence to its own
+/// Latin-1 codepoint, so `include ~/.config/sway/конфиг` came out as mojibake
+/// and the include silently missed. Same reason the environment is read with
+/// `var_os`: a non-UTF-8 value is legal on Unix, and `var` drops it entirely.
 fn shell_expand(s: &str) -> String {
+    let mut out: Vec<u8> = Vec::with_capacity(s.len());
+
     let s = match s.strip_prefix("~/") {
         Some(rest) => match std::env::var_os("HOME") {
-            Some(home) => format!("{}/{rest}", home.to_string_lossy()),
-            None => s.to_string(),
+            Some(home) => {
+                out.extend_from_slice(home.as_bytes());
+                out.push(b'/');
+                rest
+            }
+            None => s,
         },
-        None => s.to_string(),
+        None => s,
     };
 
     let b = s.as_bytes();
-    let mut out = String::with_capacity(s.len());
     let mut i = 0;
     while i < b.len() {
         if b[i] != b'$' {
-            out.push(b[i] as char);
+            out.push(b[i]);
             i += 1;
             continue;
         }
@@ -381,19 +400,24 @@ fn shell_expand(s: &str) -> String {
             end += 1;
         }
         if end == name_start {
-            out.push('$');
+            out.push(b'$');
             i += 1;
             continue;
         }
         let name = &s[name_start..end];
-        out.push_str(&std::env::var(name).unwrap_or_default());
+        if let Some(value) = std::env::var_os(name) {
+            out.extend_from_slice(value.as_bytes());
+        }
         i = if braced && b.get(end) == Some(&b'}') {
             end + 1
         } else {
             end
         };
     }
-    out
+    // Valid by construction: whole UTF-8 sequences copied verbatim plus
+    // whatever the environment held, so only a non-UTF-8 environment value can
+    // make this replace anything.
+    String::from_utf8_lossy(&out).into_owned()
 }
 
 #[cfg(test)]
@@ -415,6 +439,27 @@ mod tests {
         assert_eq!(kind("}"), "close");
         assert_eq!(kind("{"), "command");
         assert_eq!(kind("bindsym $mod+a exec foo"), "command");
+    }
+
+    /// The bug: `out.push(b[i] as char)` mapped every byte of a multi-byte
+    /// sequence to its own Latin-1 codepoint, so this path came back as
+    /// mojibake and the include quietly matched nothing.
+    #[test]
+    fn a_non_ascii_path_survives_expansion() {
+        assert_eq!(shell_expand("/etc/sway/конфиг.d"), "/etc/sway/конфиг.d");
+    }
+
+    #[test]
+    fn an_unset_variable_expands_to_nothing() {
+        // Both spellings, and the closing brace has to be consumed with it.
+        assert_eq!(shell_expand("$SWAYKEYS_NO_SUCH_VAR/x"), "/x");
+        assert_eq!(shell_expand("${SWAYKEYS_NO_SUCH_VAR}x"), "x");
+    }
+
+    #[test]
+    fn a_dollar_with_no_name_after_it_is_literal() {
+        assert_eq!(shell_expand("/etc/$/sway"), "/etc/$/sway");
+        assert_eq!(shell_expand("$"), "$");
     }
 
     #[test]

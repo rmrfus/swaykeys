@@ -96,6 +96,17 @@ what the rule is.
   `swaykeys | head` panics.
 - **Anything that looked like a binding but did not parse goes to stderr.** A
   help sheet that silently drops a line is worse than no help sheet.
+- **`shell_expand` works on bytes, not `char`s.** Scanning by byte is safe —
+  `$`, `{`, `}` and name characters are ASCII, which cannot appear inside a
+  multi-byte UTF-8 sequence — but `b[i] as char` maps each byte of such a
+  sequence to its own Latin-1 codepoint, so `include ~/.config/sway/конфиг`
+  came back as mojibake and matched nothing. Environment values are read with
+  `var_os` for the same reason: `var` drops a non-UTF-8 value entirely.
+- **`XDG_CONFIG_HOME` is checked for set-and-non-empty, deliberately not for
+  absolute.** The XDG spec asks for absolute; sway tests only `NULL || '\0'`
+  (`get_config_path`, `sway/config.c`), and matching sway wins every time these
+  two disagree. Rejecting a relative value would send this tool looking
+  somewhere the compositor is not.
 
 ## Conventions
 
