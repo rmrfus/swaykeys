@@ -141,7 +141,28 @@ that cannot be parsed are reported on standard error as
 .BR "UNPARSED \fIfile\fR:\fIline\fR: \fItext\fR" .
 A help sheet that silently drops a binding is worse than no help sheet.
 .PP
-Exit status is 0 unless the config could not be read.
+When no xkb keymap can be compiled \(em typically because
+.B libxkbcommon
+is not installed \(em a warning is printed and the sheet still appears, with
+raw keycodes in place of key names and no shadowing claims.
+.SH EXIT STATUS
+.TP
+.B 0
+The sheet was written.\& A closed pipe counts as success, so
+.B swaykeys | head
+is not an error.
+.TP
+.B 1
+The config could not be read, or the sheet could not be written.
+.TP
+.B 2
+A usage error: an unknown option or a bad value for one.
+.PP
+.B \-\-help
+and
+.B \-\-version
+exit 0.\& Unparsed binding lines are reported on standard error but do not
+change the exit status \(em they are a defect in the config, not in the run.
 .SH ENVIRONMENT
 .TP
 .B SWAYSOCK

@@ -23,8 +23,8 @@ struct Args {
     #[arg(long, value_enum, default_value_t = Format::Auto)]
     format: Format,
 
-    /// Colour. `auto` means on a terminal only, and NO_COLOR disables it —
-    /// but an explicit `always` wins over both.
+    /// Colour. `auto` means on a terminal only, and a non-empty NO_COLOR
+    /// disables it — but an explicit `always` wins over both.
     #[arg(long, value_enum, default_value_t = When::Auto)]
     color: When,
 
@@ -69,10 +69,16 @@ enum When {
 /// Colour on: asked for explicitly, or a terminal that NO_COLOR has not
 /// silenced.
 ///
-/// no-color.org asks for *present and non-empty*, not merely present. A bare
-/// `is_none()` would also disagree with `anstream`, which clap pulls in for
-/// `--help`: under `NO_COLOR=` our sheet would go monochrome while clap's help
-/// stayed coloured.
+/// no-color.org asks for *present and non-empty*, not merely present, so
+/// `is_none()` is the wrong test: under `NO_COLOR=` it silences colour that the
+/// spec says to keep.
+///
+/// It used to be wrong twice over — clap pulled `anstream` in for `--help`,
+/// which reads the variable correctly, so the two disagreed inside one process.
+/// Dropping clap's `color` feature removed that second opinion (see
+/// `Cargo.toml`), which is exactly why this one has to be right: there is
+/// nothing left to be inconsistent with, and nothing left to notice if it
+/// drifts.
 ///
 /// Split out because the terminal half is untestable from `tests/` — piped
 /// output is never coloured in `auto` mode whatever the environment says, so an
@@ -213,8 +219,9 @@ mod tests {
     #[test]
     fn no_color_needs_a_value_to_mean_anything() {
         assert!(want_color(When::Auto, true, None));
-        // Set but empty is not set: the spec says present *and non-empty*, and
-        // anstream — which clap uses for --help — reads it that way too.
+        // Set but empty is not set: the spec says present *and non-empty*.
+        // This is the only NO_COLOR check in the process now, so nothing else
+        // will disagree loudly enough to reveal a regression here.
         assert!(want_color(When::Auto, true, Some(OsStr::new(""))));
         assert!(!want_color(When::Auto, true, Some(OsStr::new("1"))));
         // Any non-empty value counts, "0" included.

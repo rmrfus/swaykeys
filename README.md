@@ -90,6 +90,9 @@ home.packages = [ inputs.swaykeys.packages.${pkgs.system}.default ];
 cargo install --git https://github.com/rmrfus/swaykeys --locked
 ```
 
+Needs Rust 1.88 or newer. This copies the binary only — `cargo install` has no
+notion of a man page; see the `Makefile` below if you want `swaykeys(1)` too.
+
 ### Prebuilt binaries
 
 Glibc binaries for x86_64 and aarch64 hang off each
@@ -110,6 +113,16 @@ static binary cannot do.
 direnv allow            # cargo/rustc from the flake devShell (or: nix develop)
 cargo build --release   # ./target/release/swaykeys
 ```
+
+Working on it? Turn on the pre-commit hook once:
+
+```sh
+git config core.hooksPath hooks
+```
+
+It runs fmt, clippy, the tests and the man page check against the **staged**
+tree rather than the working tree, so an unstaged fix cannot make a broken
+staged hunk look clean.
 
 The `Makefile` installs the man page alongside the binary, which
 `cargo install` does not, and honours `PREFIX` and `DESTDIR` for packaging:

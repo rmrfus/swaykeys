@@ -29,13 +29,33 @@ Enable the pre-commit hook once per clone:
 git config core.hooksPath hooks
 ```
 
-It checks the **index** out into a temp directory and runs fmt, clippy, tests
-and the man page there — not the working tree, where an unstaged fix would make
-a broken staged hunk look clean and let it land. `--no-verify` is the only way
-past it.
+It checks the **index** out under `target/pre-commit/src` and runs fmt, clippy,
+tests and the man page there — not the working tree, where an unstaged fix
+would make a broken staged hunk look clean and let it land. `--no-verify` is
+the only way past it. The first run builds the dependency tree a second time
+(about 20 seconds and 500 MB under `target/pre-commit`); after that it is three
+seconds.
 
 `cargo run` needs the devshell too — `LD_LIBRARY_PATH` is set there, and
 without it libxkbcommon is not found and half the tool degrades silently.
+
+## Releasing
+
+`Cargo.toml`'s version, the `.TH` date in the man page, then a `v*` tag —
+`.github/workflows/release.yml` fires on the tag and publishes the binaries
+plus `SHA256SUMS`. The flake reads the version out of `Cargo.toml`, so there is
+no third place to update.
+
+Give it a dry run first. That workflow rebuilds its own tooling on the runner
+and every action in it is a SHA pin, so a tag would otherwise be the first time
+any of it executes — which is the worst moment to find out something moved
+under it. `gh workflow run release.yml --ref main` runs the build matrix; the
+publish job is gated on a tag ref and skips, so nothing is published. Check the
+artifacts are the right architectures before tagging:
+
+```bash
+gh run download <run-id> && file swaykeys-*/swaykeys-*
+```
 
 ## Module map
 
@@ -112,6 +132,15 @@ what the rule is.
   `swaykeys | head` panics.
 - **Anything that looked like a binding but did not parse goes to stderr.** A
   help sheet that silently drops a line is worse than no help sheet.
+- **The pre-commit hook builds in its own target directory, from a fixed
+  path.** Both halves were learned the hard way. Sharing the repo's `target/`
+  leaves the working tree running units the hook compiled, so `cargo test`
+  fails with `/tmp/tmp.XXXX/tests/fixtures/…: No such file or directory` —
+  `env!("CARGO_MANIFEST_DIR")` is baked in at compile time — and touching any
+  source file makes the symptom vanish, which is what turns it into an hour.
+  And the checkout path must be fixed rather than `mktemp`, or cargo keys every
+  run on a new source path and nothing is ever reused. The 500 MB is the price
+  of both; do not pay it back by pointing `CARGO_TARGET_DIR` at `target/`.
 - **`shell_expand` works on bytes, not `char`s.** Scanning by byte is safe —
   `$`, `{`, `}` and name characters are ASCII, which cannot appear inside a
   multi-byte UTF-8 sequence — but `b[i] as char` maps each byte of such a

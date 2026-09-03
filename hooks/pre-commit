@@ -18,6 +18,17 @@ set -Eeuo pipefail
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 readonly REPO_ROOT
 
+# A fixed path, not mktemp, and a build directory of its own. Both matter:
+#
+#   * fixed, because `env!("CARGO_MANIFEST_DIR")` is baked in at compile time
+#     and cargo keys its units on the source path. A fresh temp directory every
+#     run means nothing is ever reused and the tests carry a dead path.
+#   * separate from the repo's own target/, because a shared one leaves the
+#     working tree running units this hook compiled: `cargo test` then fails
+#     with `/tmp/tmp.XXXX/tests/fixtures/...: No such file or directory`, and
+#     touching any source file makes it go away again. An hour of your life.
+readonly WORK="${REPO_ROOT}/target/pre-commit"
+
 log() {
     echo "pre-commit: $*" >&2
 }
@@ -47,17 +58,15 @@ run() {
 main() {
     command -v nix >/dev/null 2>&1 || die "required: nix (the toolchain comes from the flake)"
 
-    local staged
-    staged="$(mktemp --directory)"
-    # shellcheck disable=SC2064  # expand now: the path must survive the trap
-    trap "rm -rf '${staged}'" EXIT
+    local staged="${WORK}/src"
+    # Wiped rather than reused: a file deleted from the index has to disappear
+    # here too, or it keeps being compiled.
+    rm -rf "${WORK:?}/src"
+    mkdir -p "${staged}"
 
     git checkout-index --all --force --prefix="${staged}/"
 
-    # Reuse the real target directory. Dependencies are keyed by registry rather
-    # than by path so they are already built; only this crate recompiles, which
-    # is the difference between a hook you keep and one you disable.
-    export CARGO_TARGET_DIR="${REPO_ROOT}/target"
+    export CARGO_TARGET_DIR="${WORK}/target"
 
     # Every check the same way CI runs it, --locked included: a hook that
     # silently updates Cargo.lock is not checking the build CI will run. No
