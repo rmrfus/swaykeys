@@ -5,9 +5,16 @@ on:
     branches: [main]
   pull_request:
   # An advisory published after the last commit is invisible until the next
-  # one — and for a tool that sits installed on a machine for months, that is
-  # the normal case, not the edge case. GitHub disables a schedule after 60
-  # days of repository inactivity, so a silent schedule is itself a signal.
+  # one, and for a tool that sits installed on a machine for months that is the
+  # normal case rather than the edge case.
+  #
+  # The catch, decided rather than overlooked: this repository is public, and
+  # GitHub disables a scheduled workflow after 60 days with no repository
+  # activity — the same dormancy the schedule exists to cover. Accepted as is.
+  # The window it does cover is the two months after a commit, which is when a
+  # fresh advisory is most likely to touch code someone just changed; past that
+  # the next commit re-arms the schedule and runs the scan on the way in. What
+  # is not acceptable is assuming it runs forever, so: it does not.
   schedule:
     - cron: '17 6 * * 1'
 
