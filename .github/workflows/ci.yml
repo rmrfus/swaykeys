@@ -114,15 +114,24 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Read the floor rather than restate it. A second copy of "1.88" here
+      # drifts the moment rust-version moves: the job keeps passing on the old
+      # toolchain, because that toolchain still exists and still builds, so it
+      # verifies a floor the crate no longer claims. Nothing would report that.
+      - name: Read rust-version from Cargo.toml
+        id: msrv
+        run: |
+          v=$(grep -m1 '^rust-version' Cargo.toml | cut -d'"' -f2)
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "MSRV is $v"
+
       # This action's versions are branches, not tags, and each branch bakes its
-      # toolchain into the action itself — so a SHA pin, which the rule above
-      # requires, has to name the toolchain by hand. It is required input on
-      # this ref, so omitting it fails the job outright rather than quietly
-      # building on stable. Dependabot is told to leave this pin alone
-      # (.github/dependabot.yml); keep it equal to Cargo.toml's rust-version.
+      # toolchain into its own action.yml. On this ref there is no default —
+      # `toolchain` is required input — so an empty value above fails the job
+      # outright instead of quietly building on stable.
       - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
         with:
-          toolchain: "1.88"
+          toolchain: ${{ steps.msrv.outputs.version }}
 
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 

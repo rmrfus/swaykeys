@@ -23,6 +23,17 @@ nix build
 `--locked` everywhere: the lockfile is committed, and a build that silently
 updates it is not the build CI ran.
 
+Enable the pre-commit hook once per clone:
+
+```bash
+git config core.hooksPath hooks
+```
+
+It checks the **index** out into a temp directory and runs fmt, clippy, tests
+and the man page there — not the working tree, where an unstaged fix would make
+a broken staged hunk look clean and let it land. `--no-verify` is the only way
+past it.
+
 `cargo run` needs the devshell too — `LD_LIBRARY_PATH` is set there, and
 without it libxkbcommon is not found and half the tool degrades silently.
 
@@ -115,10 +126,15 @@ what the rule is.
 
 ## Conventions
 
-`clap` runs with `default-features = false`. Dropping `color` takes the whole
-anstream stack out of the graph, which is why `want_color` in `main.rs` is the
-only thing in the process with an opinion about colour — do not let a
-dependency put a second one back without checking `cargo tree -e features -i`.
+`clap` runs with `default-features = false`, and the reason is coherence rather
+than size: dropping `color` takes the whole anstream stack out of the graph, so
+`want_color` in `main.rs` is the only thing in the process with an opinion about
+colour. Do not let a dependency put a second one back without checking
+`cargo tree -e features -i`. `error-context` and `suggestions` stay — see the
+comment in `Cargo.toml` for what each buys.
+
+The MSRV job reads `rust-version` out of `Cargo.toml` rather than restating it,
+so moving the floor needs no second edit anywhere.
 
 
 The house Rust rules apply (`rmrf-code:rust`): `anyhow` is *not* a dependency

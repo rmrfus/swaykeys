@@ -4,14 +4,12 @@ updates:
   # workflow fixed in one repo stops transplanting into the next. Dependabot
   # bumps the pin and the trailing version comment together, which is the only
   # form of this rule that survives contact with a quiet month.
+  #
+  # No `ignore` for dtolnay/rust-toolchain, deliberately. That exclusion is for
+  # a pin where the version *is* the ref (`@1.88.0`), which an update would
+  # move. Here the ref is a SHA and the toolchain is an input, so bumping the
+  # action cannot change which compiler the MSRV job runs.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
-    ignore:
-      # The one pin that must NOT track upstream. This action selects the
-      # toolchain, so bumping it moves the MSRV job onto current stable — the
-      # job stays green while testing a floor the crate never declared, which
-      # is silent decay of the exact thing it exists to catch. Move it by hand,
-      # together with Cargo.toml's rust-version.
-      - dependency-name: dtolnay/rust-toolchain

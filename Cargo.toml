@@ -13,18 +13,24 @@ license = "MIT"
 rust-version = "1.88"
 
 [dependencies]
-# Trimmed deliberately, and `error-context` is deliberately kept: without it a
-# bad flag gets "unexpected argument found" with no mention of which one.
-# Measured at 28 KB off a 1.5 MB binary — more than the usual, because dropping
-# `color` takes the whole anstream stack out of the graph (7 crates) rather than
-# leaving it in through some other consumer. That also removes the second
-# opinion about colour: `want_color` in main.rs is now the only one in the
-# process, so NO_COLOR cannot be honoured by our sheet and ignored by --help.
+# Not trimmed for bytes — this crate does not claim to watch its size, and the
+# honest saving is 8 KB of 1.5 MB (measured, Cargo.lock restored between runs).
+# It is trimmed because dropping `color` takes the whole anstream stack out of
+# the graph, and anstream is a second opinion about colour inside this process:
+# it is the entire reason `NO_COLOR=` could leave our sheet monochrome while
+# clap's --help stayed coloured. Gone, `want_color` in main.rs is the only one.
+#
+# `error-context` and `suggestions` are kept on purpose. Without the first a bad
+# flag gets "unexpected argument found" without naming it; without the second
+# there is no "a similar argument exists: '--color'" and `Usage:` degrades from
+# the real invocation to a bare [OPTIONS]. Together they are 20 of the 28 KB the
+# trim would otherwise return, which is the trade taken here.
 clap = { version = "4", default-features = false, features = [
     "std",
     "help",
     "usage",
     "error-context",
+    "suggestions",
     "derive",
 ] }
 glob = "0.3"

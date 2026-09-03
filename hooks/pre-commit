@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+#
+# Lint what is about to be committed, not what happens to be on disk.
+#
+# Enable it per clone, once:
+#
+#     git config core.hooksPath hooks
+#
+# The index is checked out into a temp directory and every check runs there.
+# Running in the working tree instead would read unstaged edits, so a fix you
+# have made but not staged makes a broken hunk look clean and it lands anyway —
+# which is the one failure a pre-commit hook exists to prevent.
+#
+# `--no-verify` skips this. That is the escape hatch; there is no other.
+
+set -Eeuo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+readonly REPO_ROOT
+
+log() {
+    echo "pre-commit: $*" >&2
+}
+
+die() {
+    log "ERROR: $*"
+    exit 1
+}
+
+# Quiet on success, everything on failure. A hook that prints 90 lines of
+# passing tests on every commit is a hook whose one line of real output nobody
+# reads.
+run() {
+    local what="$1"
+    shift
+    local out
+    out="$(mktemp)"
+    log "${what}"
+    if ! nix develop --no-warn-dirty "${REPO_ROOT}" --command "$@" >"${out}" 2>&1; then
+        cat "${out}" >&2
+        rm -f "${out}"
+        die "${what} failed"
+    fi
+    rm -f "${out}"
+}
+
+main() {
+    command -v nix >/dev/null 2>&1 || die "required: nix (the toolchain comes from the flake)"
+
+    local staged
+    staged="$(mktemp --directory)"
+    # shellcheck disable=SC2064  # expand now: the path must survive the trap
+    trap "rm -rf '${staged}'" EXIT
+
+    git checkout-index --all --force --prefix="${staged}/"
+
+    # Reuse the real target directory. Dependencies are keyed by registry rather
+    # than by path so they are already built; only this crate recompiles, which
+    # is the difference between a hook you keep and one you disable.
+    export CARGO_TARGET_DIR="${REPO_ROOT}/target"
+
+    # Every check the same way CI runs it, --locked included: a hook that
+    # silently updates Cargo.lock is not checking the build CI will run. No
+    # path filtering — three seconds on a warm cache is cheaper than a hook
+    # whose skip conditions have to be reasoned about at three in the morning.
+    cd "${staged}"
+
+    run fmt cargo fmt --all --check
+    run clippy cargo clippy --all-targets --locked -- -D warnings
+    run test cargo test --locked
+    run man groff -man -Tutf8 -ww -z man/man1/swaykeys.1
+
+    log "ok"
+}
+
+main "$@"
