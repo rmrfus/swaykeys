@@ -14,7 +14,7 @@ them or you get findings CI does not have and miss the ones it does:
 nix develop --command cargo fmt --all --check
 nix develop --command cargo clippy --all-targets --locked -- -D warnings
 nix develop --command cargo test --locked
-nix develop --command cargo deny check advisories
+nix develop --command cargo deny check advisories sources
 nix develop --command cargo machete
 nix develop --command groff -man -Tutf8 -ww -z man/man1/swaykeys.1
 nix build
@@ -114,6 +114,12 @@ what the rule is.
   somewhere the compositor is not.
 
 ## Conventions
+
+`clap` runs with `default-features = false`. Dropping `color` takes the whole
+anstream stack out of the graph, which is why `want_color` in `main.rs` is the
+only thing in the process with an opinion about colour — do not let a
+dependency put a second one back without checking `cargo tree -e features -i`.
+
 
 The house Rust rules apply (`rmrf-code:rust`): `anyhow` is *not* a dependency
 here — errors are `Result<T, String>` built with `format!`, which is a coherent

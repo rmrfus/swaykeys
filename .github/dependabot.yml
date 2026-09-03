@@ -8,3 +8,10 @@ updates:
     directory: /
     schedule:
       interval: monthly
+    ignore:
+      # The one pin that must NOT track upstream. This action selects the
+      # toolchain, so bumping it moves the MSRV job onto current stable — the
+      # job stays green while testing a floor the crate never declared, which
+      # is silent decay of the exact thing it exists to catch. Move it by hand,
+      # together with Cargo.toml's rust-version.
+      - dependency-name: dtolnay/rust-toolchain

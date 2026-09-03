@@ -13,7 +13,20 @@ license = "MIT"
 rust-version = "1.88"
 
 [dependencies]
-clap = { version = "4", features = ["derive"] }
+# Trimmed deliberately, and `error-context` is deliberately kept: without it a
+# bad flag gets "unexpected argument found" with no mention of which one.
+# Measured at 28 KB off a 1.5 MB binary — more than the usual, because dropping
+# `color` takes the whole anstream stack out of the graph (7 crates) rather than
+# leaving it in through some other consumer. That also removes the second
+# opinion about colour: `want_color` in main.rs is now the only one in the
+# process, so NO_COLOR cannot be honoured by our sheet and ignored by --help.
+clap = { version = "4", default-features = false, features = [
+    "std",
+    "help",
+    "usage",
+    "error-context",
+    "derive",
+] }
 glob = "0.3"
 nucleo-matcher = "0.3.1"
 # Re-exports crossterm, so terminal size, raw mode and key events all come

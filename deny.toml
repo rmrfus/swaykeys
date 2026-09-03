@@ -8,5 +8,7 @@ yanked = "deny"
 
 [sources]
 # Absent entirely by default, which means a dependency pulled from any fork of
-# any repository passes the scan.
+# any repository passes the scan. Note this section is only read by
+# `cargo deny check sources` — `check advisories` alone never looks at it, so
+# CI has to name both.
 unknown-git = "deny"
