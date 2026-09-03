@@ -141,63 +141,56 @@ impl Keymap {
             options: ptr(&options),
         };
 
-        // SAFETY: every pointer below is either freshly returned by
-        // libxkbcommon and null-checked, or a CString alive for this scope.
-        unsafe {
-            let context = (lib.xkb_context_new)(xkb::xkb_context_flags::XKB_CONTEXT_NO_FLAGS);
-            if context.is_null() {
-                return None;
-            }
-            let keymap = (lib.xkb_keymap_new_from_names)(
+        // One unsafe block per call, each with the invariant it actually rests
+        // on. A single block around the lot reads as discharged and hides the
+        // one call nobody null-checked — which is the whole failure mode here,
+        // since the cleanup path is by hand.
+
+        // SAFETY: takes no pointers, and reports failure by returning null
+        // rather than by trapping.
+        let context =
+            unsafe { (lib.xkb_context_new)(xkb::xkb_context_flags::XKB_CONTEXT_NO_FLAGS) };
+        if context.is_null() {
+            return None;
+        }
+        // SAFETY: `context` is non-null, checked directly above. Every pointer
+        // in `names` is either null or into a CString still alive in this
+        // scope, and libxkbcommon copies the strings before it returns.
+        let keymap = unsafe {
+            (lib.xkb_keymap_new_from_names)(
                 context,
                 &names,
                 xkb::xkb_keymap_compile_flags::XKB_KEYMAP_COMPILE_NO_FLAGS,
-            );
-            if keymap.is_null() {
-                (lib.xkb_context_unref)(context);
-                return None;
-            }
-            let state = (lib.xkb_state_new)(keymap);
-            if state.is_null() {
-                (lib.xkb_keymap_unref)(keymap);
-                (lib.xkb_context_unref)(context);
-                return None;
-            }
-
-            let mut name_of = HashMap::new();
-            let mut codes_for: HashMap<u32, (u32, usize)> = HashMap::new();
-            let min = (lib.xkb_keymap_min_keycode)(keymap);
-            let max = (lib.xkb_keymap_max_keycode)(keymap);
-            // c_char, not i8: it is signed on x86_64 and *unsigned* on aarch64,
-            // so hardcoding either side compiles on one architecture and fails
-            // on the other.
-            let mut buf = [0 as c_char; 64];
-
-            for code in min..=max {
-                // Group 0: the state is fresh, so this is the first layout —
-                // exactly what sway translates against.
-                let sym = (lib.xkb_state_key_get_one_sym)(state, code);
-                if sym == 0 {
-                    continue; // XKB_KEY_NoSymbol — `find_keycode` skips these
-                }
-                let entry = codes_for.entry(sym).or_insert((code, 0));
-                entry.0 = code;
-                entry.1 += 1;
-
-                let n = (lib.xkb_keysym_get_name)(sym, buf.as_mut_ptr(), buf.len());
-                if n > 0 {
-                    if let Ok(name) = CStr::from_ptr(buf.as_ptr()).to_str() {
-                        name_of.insert(code, name.to_string());
-                    }
-                }
-            }
-
-            (lib.xkb_state_unref)(state);
-            (lib.xkb_keymap_unref)(keymap);
-            (lib.xkb_context_unref)(context);
-
-            Some(Keymap { name_of, codes_for })
+            )
+        };
+        if keymap.is_null() {
+            // SAFETY: `context` is non-null and has not been unref'd yet.
+            unsafe { (lib.xkb_context_unref)(context) };
+            return None;
         }
+        // SAFETY: `keymap` is non-null, checked directly above, and it outlives
+        // the state — nothing unrefs it before `xkb_state_unref` below.
+        let state = unsafe { (lib.xkb_state_new)(keymap) };
+        if state.is_null() {
+            // SAFETY: `keymap` is non-null and has not been unref'd yet.
+            unsafe { (lib.xkb_keymap_unref)(keymap) };
+            // SAFETY: `context` is non-null and has not been unref'd yet.
+            unsafe { (lib.xkb_context_unref)(context) };
+            return None;
+        }
+
+        let (name_of, codes_for) = scan(lib, keymap, state);
+
+        // Unref'd exactly once each, in reverse order of creation. Nothing
+        // below reads any of them again.
+        // SAFETY: `state` is non-null and not yet unref'd.
+        unsafe { (lib.xkb_state_unref)(state) };
+        // SAFETY: `keymap` is non-null and not yet unref'd.
+        unsafe { (lib.xkb_keymap_unref)(keymap) };
+        // SAFETY: `context` is non-null and not yet unref'd.
+        unsafe { (lib.xkb_context_unref)(context) };
+
+        Some(Keymap { name_of, codes_for })
     }
 
     /// Parse a keysym name the way sway does — case-insensitively.
@@ -213,6 +206,67 @@ impl Keymap {
         };
         (sym != 0).then_some(sym)
     }
+}
+
+/// Walk every keycode the keymap defines and record what it produces.
+///
+/// Group 0 throughout: the state is fresh from `xkb_state_new` and nothing ever
+/// changes the group, so this is the first layout — exactly what sway
+/// translates against.
+fn scan(
+    lib: &xkb::XkbCommon,
+    keymap: *mut xkb::xkb_keymap,
+    state: *mut xkb::xkb_state,
+) -> (HashMap<u32, String>, HashMap<u32, (u32, usize)>) {
+    let mut name_of = HashMap::new();
+    let mut codes_for: HashMap<u32, (u32, usize)> = HashMap::new();
+
+    // SAFETY: `keymap` is a live keymap from `xkb_keymap_new_from_names`; the
+    // call only reads it.
+    let min = unsafe { (lib.xkb_keymap_min_keycode)(keymap) };
+    // SAFETY: as above.
+    let max = unsafe { (lib.xkb_keymap_max_keycode)(keymap) };
+
+    for code in min..=max {
+        let Some(sym) = sym_at(lib, state, code) else {
+            continue; // XKB_KEY_NoSymbol — `find_keycode` skips these
+        };
+        let entry = codes_for.entry(sym).or_insert((code, 0));
+        entry.0 = code;
+        entry.1 += 1;
+
+        if let Some(name) = sym_name(lib, sym) {
+            name_of.insert(code, name);
+        }
+    }
+    (name_of, codes_for)
+}
+
+/// The single keysym `code` produces, or `None` for XKB_KEY_NoSymbol.
+fn sym_at(lib: &xkb::XkbCommon, state: *mut xkb::xkb_state, code: u32) -> Option<u32> {
+    // SAFETY: `state` is a live state from `xkb_state_new` and the call only
+    // reads it. Any keycode is a legal argument — one outside the keymap's
+    // range yields NoSymbol rather than misbehaving.
+    let sym = unsafe { (lib.xkb_state_key_get_one_sym)(state, code) };
+    (sym != 0).then_some(sym)
+}
+
+/// The keysym's name, when it has one that fits in the buffer.
+fn sym_name(lib: &xkb::XkbCommon, sym: u32) -> Option<String> {
+    // c_char, not i8: it is signed on x86_64 and *unsigned* on aarch64, so
+    // hardcoding either side compiles on one architecture and fails on the
+    // other.
+    let mut buf = [0 as c_char; 64];
+    // SAFETY: `buf` is writable for exactly the length passed alongside it, so
+    // libxkbcommon cannot write past the end.
+    let n = unsafe { (lib.xkb_keysym_get_name)(sym, buf.as_mut_ptr(), buf.len()) };
+    if n <= 0 {
+        return None;
+    }
+    // SAFETY: a positive return means a NUL-terminated string was written into
+    // `buf`, which outlives the borrow taken here.
+    let name = unsafe { CStr::from_ptr(buf.as_ptr()) };
+    name.to_str().ok().map(str::to_owned)
 }
 
 impl Resolver for Keymap {
