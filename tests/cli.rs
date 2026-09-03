@@ -109,27 +109,24 @@ fn color_can_be_forced_into_a_pipe() {
     assert!(stdout(&run(&["--format", "plain", "--color", "always"])).contains('\x1b'));
 }
 
-/// Precedence is flag, then environment, then default: a variable from the
-/// user's profile does not get to override an option they typed just now.
+/// Precedence is flag, then environment: a variable from the user's profile
+/// does not get to override an option they typed just now.
+///
+/// Only this half is testable here. The other half — NO_COLOR silencing `auto`
+/// — needs a terminal, and piped output is never coloured in `auto` mode
+/// whatever the environment says, so asserting it from here would pass for the
+/// wrong reason. `want_color` in `main.rs` carries that test.
 #[test]
-fn no_color_disables_auto_but_not_an_explicit_request() {
-    let with_no_color = |args: &[&str]| {
-        let out = Command::new(env!("CARGO_BIN_EXE_swaykeys"))
-            .args(["--config", fixture("layout.config").to_str().unwrap()])
-            .args(args)
-            // Any value counts as set, including "0" — per no-color.org.
-            .env("NO_COLOR", "0")
-            .env_remove("SWAYSOCK")
-            .output()
-            .expect("binary should run");
-        stdout(&out).contains('\x1b')
-    };
-
-    assert!(!with_no_color(&["--format", "plain"]), "NO_COLOR ignored");
-    assert!(
-        with_no_color(&["--format", "plain", "--color", "always"]),
-        "flag overridden"
-    );
+fn no_color_does_not_override_an_explicit_color_flag() {
+    let out = Command::new(env!("CARGO_BIN_EXE_swaykeys"))
+        .args(["--config", fixture("layout.config").to_str().unwrap()])
+        .args(["--format", "plain", "--color", "always"])
+        // Any non-empty value counts as set, "0" included — per no-color.org.
+        .env("NO_COLOR", "0")
+        .env_remove("SWAYSOCK")
+        .output()
+        .expect("binary should run");
+    assert!(stdout(&out).contains('\x1b'), "flag overridden");
 }
 
 #[test]

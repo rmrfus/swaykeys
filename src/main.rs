@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::io::{IsTerminal, Write};
 use std::path::PathBuf;
 use std::process::ExitCode;
@@ -63,6 +64,25 @@ enum When {
     Auto,
     Always,
     Never,
+}
+
+/// Colour on: asked for explicitly, or a terminal that NO_COLOR has not
+/// silenced.
+///
+/// no-color.org asks for *present and non-empty*, not merely present. A bare
+/// `is_none()` would also disagree with `anstream`, which clap pulls in for
+/// `--help`: under `NO_COLOR=` our sheet would go monochrome while clap's help
+/// stayed coloured.
+///
+/// Split out because the terminal half is untestable from `tests/` — piped
+/// output is never coloured in `auto` mode whatever the environment says, so an
+/// end-to-end assertion about NO_COLOR passes for the wrong reason.
+fn want_color(when: When, tty: bool, no_color: Option<&OsStr>) -> bool {
+    match when {
+        When::Always => true,
+        When::Never => false,
+        When::Auto => tty && !matches!(no_color, Some(v) if !v.is_empty()),
+    }
 }
 
 fn main() -> ExitCode {
@@ -155,12 +175,7 @@ fn main() -> ExitCode {
     if args.two_column && format != Format::Plain {
         eprintln!("swaykeys: --two-column only applies to the plain format; ignoring it");
     }
-    // NO_COLOR is honoured whatever its value, per no-color.org.
-    let color = match args.color {
-        When::Always => true,
-        When::Never => false,
-        When::Auto => tty && std::env::var_os("NO_COLOR").is_none(),
-    };
+    let color = want_color(args.color, tty, std::env::var_os("NO_COLOR").as_deref());
     let columns = if args.two_column { 2 } else { 1 };
 
     let out = match format {
@@ -187,5 +202,35 @@ fn main() -> ExitCode {
             eprintln!("swaykeys: {e}");
             ExitCode::FAILURE
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{want_color, When};
+    use std::ffi::OsStr;
+
+    #[test]
+    fn no_color_needs_a_value_to_mean_anything() {
+        assert!(want_color(When::Auto, true, None));
+        // Set but empty is not set: the spec says present *and non-empty*, and
+        // anstream — which clap uses for --help — reads it that way too.
+        assert!(want_color(When::Auto, true, Some(OsStr::new(""))));
+        assert!(!want_color(When::Auto, true, Some(OsStr::new("1"))));
+        // Any non-empty value counts, "0" included.
+        assert!(!want_color(When::Auto, true, Some(OsStr::new("0"))));
+    }
+
+    /// Precedence is flag, then environment, then default: a variable from the
+    /// user's profile does not get to override an option they typed just now.
+    #[test]
+    fn an_explicit_color_flag_outranks_both_the_terminal_and_no_color() {
+        assert!(want_color(When::Always, false, Some(OsStr::new("1"))));
+        assert!(!want_color(When::Never, true, None));
+    }
+
+    #[test]
+    fn auto_stays_off_when_there_is_no_terminal() {
+        assert!(!want_color(When::Auto, false, None));
     }
 }
