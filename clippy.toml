@@ -1,0 +1,7 @@
+# The panic lints in Cargo.toml's [lints.clippy] are warn-level and CI runs
+# with -D warnings, so an .expect("fixture should load") in a test would fail
+# the build without these. One key per lint: allow-unwrap-in-tests does
+# nothing for expect_used or panic.
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-panic-in-tests = true

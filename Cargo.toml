@@ -6,6 +6,11 @@ description = "Help sheet for every active sway key binding"
 homepage = "https://github.com/rmrfus/swaykeys"
 repository = "https://github.com/rmrfus/swaykeys"
 license = "MIT"
+# The floor is set by ratatui 0.30, not by our own code. It is not cosmetic:
+# clippy gates its suggestions on it, `incompatible_msrv` fires against it, and
+# the resolver picks dependency versions that respect it — so a floor that lies
+# is worse than none. CI builds it on that exact toolchain.
+rust-version = "1.88"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

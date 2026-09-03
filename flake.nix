@@ -45,6 +45,13 @@
             clippy
             rustfmt
             rust-analyzer
+
+            # The tools CI drives through this shell. Left out, every check
+            # below `cargo test` fails with `command not found` instead of
+            # with a finding.
+            groff # man page syntax check
+            cargo-deny # advisory scan
+            cargo-machete # unused dependency scan
           ];
           # Same reason as the wrapper above: `cargo run` has to find it too.
           LD_LIBRARY_PATH = pkgs.lib.makeLibraryPath [ pkgs.libxkbcommon ];

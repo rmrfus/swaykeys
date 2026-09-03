@@ -1,0 +1,12 @@
+# `cargo deny check advisories` covers everything cargo-audit does, so this is
+# the only dependency scanner the repo runs. [licenses] is deliberately absent:
+# it is for legal review, not for keeping the tree off vulnerable code.
+
+[advisories]
+# Default is "warn", which in a green build reads exactly like "clean".
+yanked = "deny"
+
+[sources]
+# Absent entirely by default, which means a dependency pulled from any fork of
+# any repository passes the scan.
+unknown-git = "deny"
