@@ -1,7 +1,7 @@
 [package]
 name = "swaykeys"
 version = "0.1.0"
-edition = "2021"
+edition = "2024"
 description = "Help sheet for every active sway key binding"
 homepage = "https://github.com/rmrfus/swaykeys"
 repository = "https://github.com/rmrfus/swaykeys"

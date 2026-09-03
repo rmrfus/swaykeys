@@ -100,7 +100,7 @@ pub fn load(explicit: Option<&Path>) -> Result<Config, String> {
                 (None, None) => {
                     return Err(
                         "no sway config found and sway is not running (try --config PATH)".into(),
-                    )
+                    );
                 }
             }
         }

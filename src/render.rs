@@ -152,12 +152,11 @@ fn side_by_side(lines: &[Line], sections: &[Section], style: Style, columns: usi
     for (n, chunk) in lines.chunks(target).enumerate() {
         let mut column: Vec<String> = Vec::new();
         // A column that starts mid-section is unreadable without its heading.
-        if n > 0 {
-            if let Some(first) = chunk.first().filter(|l| !l.header) {
-                if let Some(section) = sections.get(first.section) {
-                    column.push(heading(&format!("{} (cont.)", section.title), style));
-                }
-            }
+        if n > 0
+            && let Some(first) = chunk.first().filter(|l| !l.header)
+            && let Some(section) = sections.get(first.section)
+        {
+            column.push(heading(&format!("{} (cont.)", section.title), style));
         }
         column.extend(chunk.iter().map(|l| l.text.clone()));
         groups.push(column);

@@ -66,11 +66,12 @@ pub fn logical_lines(content: &str) -> Vec<LogicalLine> {
         }
 
         let mut text = stripped.to_string();
-        if !text.ends_with('{') && !text.ends_with('}') {
-            if let Some(consumed) = detect_brace(&phys[i..]) {
-                i += consumed;
-                text.push_str(" {");
-            }
+        if !text.ends_with('{')
+            && !text.ends_with('}')
+            && let Some(consumed) = detect_brace(&phys[i..])
+        {
+            i += consumed;
+            text.push_str(" {");
         }
 
         out.push(LogicalLine {

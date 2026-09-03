@@ -27,7 +27,7 @@
 //! working help sheet: raw keycodes instead of names, and no shadow claims.
 
 use std::collections::HashMap;
-use std::ffi::{c_char, CStr, CString};
+use std::ffi::{CStr, CString, c_char};
 
 use xkbcommon_dl as xkb;
 

@@ -207,7 +207,7 @@ fn main() -> ExitCode {
 
 #[cfg(test)]
 mod tests {
-    use super::{want_color, When};
+    use super::{When, want_color};
     use std::ffi::OsStr;
 
     #[test]

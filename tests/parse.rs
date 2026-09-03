@@ -165,9 +165,10 @@ fn broken_bindings_are_reported_not_dropped() -> Result<(), String> {
     assert_eq!(commands(&b), ["exec good", "exec also-good"]);
     assert_eq!(b.unparsed.len(), 4, "got: {:#?}", b.unparsed);
     // The report has to say where, or it is useless.
-    assert!(b
-        .unparsed
-        .iter()
-        .all(|u| u.starts_with("UNPARSED ") && u.contains("garbage.config:")));
+    assert!(
+        b.unparsed
+            .iter()
+            .all(|u| u.starts_with("UNPARSED ") && u.contains("garbage.config:"))
+    );
     Ok(())
 }
