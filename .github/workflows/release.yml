@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - 'v*'
+  # Lets the build matrix be exercised without cutting a release. This whole
+  # workflow otherwise proves itself for the first time after the tag, which is
+  # the worst place to find out that a runner-side install or an artifact
+  # action changed under it. The publish job below is gated on a tag, so a
+  # manual run builds and uploads artifacts and stops there.
+  workflow_dispatch:
 
 # Read at the top; the one job that has to create a release asks for write
 # itself. A blanket write across the workflow because one step needed it is
@@ -64,6 +70,9 @@ jobs:
     name: Publish release
     needs: build
     runs-on: ubuntu-latest
+    # Tags only. On a manual run GITHUB_REF_NAME is the branch, and this job
+    # would happily publish a release called "main".
+    if: startsWith(github.ref, 'refs/tags/v')
     # The only job that writes anything.
     permissions:
       contents: write
