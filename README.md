@@ -111,22 +111,30 @@ direnv allow            # cargo/rustc from the flake devShell (or: nix develop)
 cargo build --release   # ./target/release/swaykeys
 ```
 
+The `Makefile` installs the man page alongside the binary, which
+`cargo install` does not, and honours `PREFIX` and `DESTDIR` for packaging:
+
+```sh
+sudo make install                       # /usr/local
+make install PREFIX=/usr DESTDIR=./pkg  # staged, for a distro package
+```
+
 ## Usage
 
 ```
 swaykeys [OPTIONS]
 ```
 
-| Flag                  | Default | Meaning                                                        |
-|-----------------------|---------|----------------------------------------------------------------|
-| `-c, --config <PATH>` | auto    | read this config instead of locating the running one           |
-| `--format <FMT>`      | `auto`  | `auto`, `plain`, `md` or `json`; naming one turns the pager off |
-| `--pager <WHEN>`      | `auto`  | `auto`, `always`, `never`                                      |
-| `--color <WHEN>`      | `auto`  | `auto`, `always`, `never`; a non-empty `NO_COLOR` disables `auto`          |
-| `-2, --two-column`    | off     | side by side; implies plain text and no pager                  |
-| `--desc`              | off     | show the comment above a binding instead of its command        |
-| `--all`               | off     | also show bindings that never fire, and what beats them        |
-| `--mode <NAME>`       | all     | only this binding mode                                         |
+| Flag                  | Default | Meaning                                                           |
+|-----------------------|---------|-------------------------------------------------------------------|
+| `-c, --config <PATH>` | auto    | read this config instead of locating the running one              |
+| `--format <FMT>`      | `auto`  | `auto`, `plain`, `md` or `json`; naming one turns the pager off   |
+| `--pager <WHEN>`      | `auto`  | `auto`, `always`, `never`                                         |
+| `--color <WHEN>`      | `auto`  | `auto`, `always`, `never`; a non-empty `NO_COLOR` disables `auto` |
+| `-2, --two-column`    | off     | side by side; implies plain text and no pager                     |
+| `--desc`              | off     | show the comment above a binding instead of its command           |
+| `--all`               | off     | also show bindings that never fire, and what beats them           |
+| `--mode <NAME>`       | all     | only this binding mode                                            |
 
 Keys in the interactive sheet follow fzf: type to filter, `↑`/`↓` or
 `Ctrl-N`/`Ctrl-P` to move, `Ctrl-U` to clear, `Esc` to leave. `q` is not quit —

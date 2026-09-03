@@ -42,6 +42,11 @@ without it libxkbcommon is not found and half the tool degrades silently.
 | `tui.rs`    | the interactive pager                                             |
 | `lib.rs`    | exists only so `tests/` can reach the parser without a compositor |
 
+Distribution: `flake.nix` for nix, `Makefile` (PREFIX/DESTDIR) for everyone
+else. Both exist because neither covers the other — `cargo install` places the
+binary and no man page, and whoever ran `cargo install --git` has no checkout
+to run `make` from.
+
 Flat `src/*.rs`, no `mod.rs`, no subdirectories.
 
 ## Non-negotiables
