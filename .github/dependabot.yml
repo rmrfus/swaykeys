@@ -1,0 +1,10 @@
+version: 2
+updates:
+  # SHA-pinned actions do not drift on their own — they rot instead, and a
+  # workflow fixed in one repo stops transplanting into the next. Dependabot
+  # bumps the pin and the trailing version comment together, which is the only
+  # form of this rule that survives contact with a quiet month.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly

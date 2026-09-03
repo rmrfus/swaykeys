@@ -4,6 +4,12 @@ on:
   push:
     branches: [main]
   pull_request:
+  # An advisory published after the last commit is invisible until the next
+  # one — and for a tool that sits installed on a machine for months, that is
+  # the normal case, not the edge case. GitHub disables a schedule after 60
+  # days of repository inactivity, so a silent schedule is itself a signal.
+  schedule:
+    - cron: '17 6 * * 1'
 
 permissions:
   contents: read
@@ -13,7 +19,10 @@ jobs:
     name: fmt · clippy · test
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Every action is pinned to a commit, never a tag: a tag is mutable, and
+      # in the tj-actions/changed-files compromise (CVE-2025-30066) every tag
+      # was repointed at a commit that dumped CI secrets into the logs.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # libxkbcommon is dlopen'd at run time, and xkb-data carries the layout
       # definitions it compiles against. Without both, the keymap tests skip
@@ -25,7 +34,7 @@ jobs:
       - name: Add components
         run: rustup component add clippy rustfmt
 
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
 
       - name: Format
         run: cargo fmt --all --check
@@ -47,6 +56,9 @@ jobs:
 
       # The keymap tests skip rather than fail when libxkbcommon is missing, so
       # a broken install above would look like a green run. Prove it loaded.
+      # This needs its own run with --nocapture: libtest swallows the output of
+      # passing tests, so grepping a plain `cargo test` finds nothing and the
+      # guard silently never fires.
       - name: Check the keymap tests actually ran
         run: |
           cargo test --locked --test shadow -- --nocapture 2>&1 | tee out.txt
@@ -54,3 +66,59 @@ jobs:
             echo "::error::libxkbcommon did not load; shadow tests were skipped"
             exit 1
           fi
+
+  # Everything that lives in the devshell rather than in rustup. Kept apart
+  # from `check` because that job deliberately builds the way a user with
+  # rustup builds, and because two jobs run in parallel.
+  nix:
+    name: nix build · deny · machete · man
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: cachix/install-nix-action@13d8dd58da0234aa297dedd986986ccb8e7f3e24 # v31.11.1
+
+      # Without this the flake rots silently and the breakage surfaces at
+      # `nix run github:...`, in front of whoever tried the tool first. It also
+      # runs the suite a second time under buildRustPackage's doCheck — in a
+      # sandbox with no network, no $HOME and no dlopen-able libxkbcommon, so
+      # the keymap tests take their skip path there. That is what the guard in
+      # the job above is for.
+      - name: nix build
+        run: nix build --print-build-logs
+
+      # Covers everything cargo-audit does, so this is the only scanner here.
+      - name: Advisories
+        run: nix develop --command cargo deny check advisories
+
+      # A dependency nothing calls is not a crash — it keeps turning up in the
+      # scan above and can hold rust-version above what our own code needs.
+      - name: Unused dependencies
+        run: nix develop --command cargo machete
+
+      # -z parses and reports without rendering, so a broken macro is a failed
+      # build rather than a mangled page nobody looks at until they need it.
+      - name: Man page
+        run: nix develop --command groff -man -Tutf8 -ww -z man/man1/swaykeys.1
+
+  # rust-version is otherwise a claim nothing checks: nix gives whatever
+  # nixpkgs pins and rustup gives latest stable, so a floor that has drifted
+  # below what the code needs stays green for months and then breaks the first
+  # stranger running `cargo install --locked`.
+  msrv:
+    name: Build on the declared MSRV
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # The ref name is normally the toolchain selector for this action; pinned
+      # to a commit it has to be named explicitly. Keep it equal to Cargo.toml's
+      # rust-version.
+      - uses: dtolnay/rust-toolchain@6c977a6ca4077a0ceb28ffbe03f59d46e9ac8772 # v1
+        with:
+          toolchain: "1.88"
+
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+
+      - name: Check
+        run: cargo check --locked --all-targets
