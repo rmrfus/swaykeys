@@ -48,7 +48,7 @@ jobs:
       # with no change on our side.
       - name: Install cargo-zigbuild
         run: pip install ziglang
-      - uses: taiki-e/install-action@e67fa11c4b9316fa714ddf0abed07a0c3143b95b # v2.87.4
+      - uses: taiki-e/install-action@86f7a0ffb25f40114606501a311ebcfaf882ea32 # v2.88.0
         with:
           tool: cargo-zigbuild
 
